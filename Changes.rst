@@ -1,3 +1,14 @@
+Unreleased
+==========
+
+-  Add ``OTPVerifier``, a stateful resynchronization and replay-protection
+   entry point sharing one forward-window semantics across HOTP, TOTP and
+   Steam. It returns the matching counter/timecode, advances a consumed
+   watermark that rejects reused and earlier positions, exposes
+   JSON-serializable state (``to_state``/``from_state``), serializes across
+   processes, and uses an in-process lock so concurrent verifications consume
+   each position at most once. Add ``OTPReplayError`` for replay rejections.
+
 Changes for v2.12.0 (2026-11-15)
 ================================
 

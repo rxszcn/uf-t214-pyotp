@@ -12,6 +12,9 @@ API documentation
 .. automodule:: pyotp.hotp
    :members:
 
+.. automodule:: pyotp.verifier
+   :members:
+
 .. automodule:: pyotp.exceptions
    :members:
    :show-inheritance:

@@ -112,6 +112,56 @@ row per credential, an ``id`` primary key, and a nullable integer ``last_timecod
 Grant authentication only when this function returns ``True``, after the database transaction has committed.
 If you enable ``valid_window``, persist the returned matching timecode, which may differ from the server's current timecode.
 
+Stateful resynchronization and replay protection with OTPVerifier
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``OTPVerifier`` bundles resynchronization and replay detection into one stateful entry point with identical semantics
+for HOTP, TOTP and Steam. Verification scans *forward* over a window you supply; on a match it returns the actual
+counter or timecode that matched and advances an internal watermark to that position. Any code at or below the
+watermark, including earlier codes inside a later window, is afterwards rejected with ``pyotp.OTPReplayError`` (a
+subclass of ``pyotp.OTPVerificationError``). Code comparisons are constant time, and an in-process lock makes the
+scan-and-advance sequence atomic across threads.
+
+.. code:: python
+
+    import pyotp
+
+    # HOTP: pass counter= instead of for_time=; the initial_count offset is handled internally.
+    hotp = pyotp.HOTP('base32secret32323232323232')
+    verifier = pyotp.OTPVerifier(hotp, window=5)
+    matched_counter = verifier.verify(hotp.at(13), counter=10)  # client skipped counters 10-12
+    # matched_counter == 13 and verifier.last_consumed == 13
+    verifier.verify(hotp.at(13), counter=10)  # raises pyotp.OTPReplayError
+
+    # TOTP (and Steam, which shares the same API): for_time= defaults to the current time.
+    totp = pyotp.TOTP('base32secret32323232323232')
+    verifier = pyotp.OTPVerifier(totp, window=1)
+    matched_timecode = verifier.verify(totp.now())
+
+The window is an upper bound chosen by the caller, never extended by the library: the scan covers
+``[base, base + window]`` intersected with positions strictly above the watermark, where ``base`` is the supplied
+counter or the timecode derived from ``for_time``. Negative or non-integer windows/counters raise ``ValueError``;
+passing ``for_time`` to an HOTP verifier or ``counter`` to a TOTP/Steam verifier raises ``TypeError``. Steam's custom
+five-character alphabet and the TOTP ``interval`` time-step conversion both apply automatically because the verifier
+delegates code generation to the OTP object you construct.
+
+The watermark is exposed as JSON-serializable state for external storage, so it can live in a database shared by all
+application workers:
+
+.. code:: python
+
+    import json
+
+    state = verifier.to_state()           # plain dict: version, window, last_consumed
+    stored = json.dumps(state)            # persist this next to the credential
+    verifier = pyotp.OTPVerifier.from_state(totp, json.loads(stored))
+
+The in-process lock only coordinates threads inside one process. When several processes or machines share a
+credential, perform the read-compare-update of ``last_consumed`` in the external store atomically (for example with a
+conditional ``UPDATE ... WHERE last_consumed < ?``); grant access only after that transaction commits. The
+stateless :meth:`TOTP.verify` and :meth:`TOTP.verify_and_get_timecode` interfaces remain available and unchanged for
+callers that manage replay protection themselves.
+
 .. warning::
 
     For both HOTP and TOTP, do not use the raw submitted OTP, or a hash of that raw value, as the replay-detection key.

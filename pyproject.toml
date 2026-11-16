@@ -70,3 +70,4 @@ ignore = [
 "**/__init__.py" = ["F401"]
 # Keep accepted timestamp types explicit in public API annotations.
 "src/pyotp/totp.py" = ["PYI041"]
+"src/pyotp/verifier.py" = ["PYI041"]

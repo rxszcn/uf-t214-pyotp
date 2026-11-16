@@ -9,10 +9,11 @@ from urllib.parse import parse_qsl, unquote, urlparse
 
 from . import contrib
 from .compat import random
-from .exceptions import OTPVerificationError, PyOTPError
+from .exceptions import OTPReplayError, OTPVerificationError, PyOTPError
 from .hotp import HOTP
 from .otp import OTP
 from .totp import TOTP
+from .verifier import OTPVerifier
 
 
 def random_base32(length: int = 32, chars: Sequence[str] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567") -> str:
